@@ -20,6 +20,7 @@ class LocalStoragePartitionWriter:
         if not bucket or not prefix:
             raise ValueError("Bucket and prefix cannot be empty.")
         self.base_path = os.path.join(bucket, prefix)
+        self.manifest_path = os.path.join(self.base_path, "manifest.json")
         logging.info(f"LocalStoragePartitionWriter initialized for path: {self.base_path}")
 
         os.makedirs(self.base_path, exist_ok=True)
@@ -44,11 +45,9 @@ class LocalStoragePartitionWriter:
                 partition_dir = os.path.join(self.base_path, f"event_date={date}")
                 os.makedirs(partition_dir, exist_ok=True)
 
-                # Generate a unique filename
                 filename = f"events-{uuid.uuid4()}.json.gz"
                 file_path = os.path.join(partition_dir, filename)
 
-                # Serialize to JSON and compress with gzip
                 json_data = json.dumps(event_list, indent=4).encode('utf-8')
                 with gzip.open(file_path, 'wb') as f_out:
                     f_out.write(json_data)
@@ -63,12 +62,11 @@ class LocalStoragePartitionWriter:
         self._write_manifest(manifest_data)
 
     def _write_manifest(self, manifest_data: Dict[str, Dict[str, int]]) -> None:
-        manifest_path = os.path.join(self.base_path, "manifest.json")
         existing_manifest_data: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
 
         try:
             try:
-                with open(manifest_path) as f:
+                with open(self.manifest_path) as f:
                     existing_manifest_data = json.load(f)
             except Exception:
                 pass
@@ -76,9 +74,9 @@ class LocalStoragePartitionWriter:
             for date, data in manifest_data.items():
                 existing_manifest_data[date]['event_count'] += data['event_count']
 
-            with open(manifest_path, 'w') as f:
+            with open(self.manifest_path, 'w') as f:
                 json.dump(existing_manifest_data, f, indent=4)
-            logging.info(f"Manifest file written to {manifest_path}")
+            logging.info(f"Manifest file written to {self.manifest_path}")
         except Exception as e:
             logging.error(f"Failed to write manifest file: {e}")
 
